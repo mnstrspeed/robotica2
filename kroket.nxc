@@ -1,0 +1,220 @@
+#define SONAR_MOTOR OUT_A
+#define SONAR_BEGIN IN_1
+#define SONAR_END IN_2
+#define SONAR_SENSOR IN_3
+
+#define SONAR_MOTOR_POWER 30
+#define SONAR_MEASURE_INTERVAL 10
+#define SONAR_SCAN_TIMEOUT 100
+ 
+#define VALUE_TRESHOLD 10
+#define LENGTH_TRESHOLD 1
+ 
+void print_line(byte line, string str)
+{
+	ClearLine(line);
+	TextOut(0, line << 3, str);
+}
+ 
+void reverse(unsigned short &values[], unsigned short num_values)
+{
+	unsigned short i;
+	unsigned short temp;
+	for (i = 0; i < num_values / 2; i++)
+	{
+		temp = values[i];
+		values[i] = values[num_values - 1 - i];
+		values[num_values - 1 - i] = temp;
+	}
+}
+ 
+unsigned short min(unsigned short &values[], unsigned short begin, unsigned short end)
+{
+	unsigned short min = values[begin];
+	unsigned short i;
+	for (i = begin + 1; i <= end; i++)
+	{
+		if (min > values[i])
+		{
+			min = values[i];
+		}
+	}
+	return min;
+}
+ 
+unsigned short max(unsigned short &values[], unsigned short begin, unsigned short end)
+{
+	unsigned short max = values[begin];
+	unsigned short i;
+	for (i = begin + 1; i <= end; i++)
+	{
+		if (max < values[i])
+		{
+			max = values[i];
+		}
+	}
+	return max;
+}
+ 
+void sonar_init()
+{
+	SetSensorType(SONAR_BEGIN, SENSOR_TYPE_TOUCH);
+	SetSensorMode(SONAR_BEGIN, SENSOR_MODE_BOOL);
+	SetSensorType(SONAR_END, SENSOR_TYPE_TOUCH);
+	SetSensorMode(SONAR_END, SENSOR_MODE_BOOL);
+	SetSensorUltrasonic(SONAR_SENSOR);
+	Off(SONAR_MOTOR);
+}
+ 
+void turn_sonar(bool rev)
+{
+	if (rev)
+	{
+		OnRev(SONAR_MOTOR, SONAR_MOTOR_POWER);
+	}
+	else
+	{
+		OnFwd(SONAR_MOTOR, SONAR_MOTOR_POWER);
+	}
+}
+ 
+void sonar_scan(unsigned short &values[], unsigned short& num_values, bool rev)
+{
+	num_values = 0;
+	byte turn_touch = rev ? SONAR_BEGIN : SONAR_END;
+ 
+	turn_sonar(rev);
+	while (!SensorBoolean(turn_touch))
+	{
+		values[num_values++] = SensorUS(SONAR_SENSOR);
+		Wait(SONAR_MEASURE_INTERVAL);
+	}
+	Off(SONAR_MOTOR);
+ 
+	if (rev)
+	{
+		reverse(values, num_values);
+	}
+}
+ 
+void find_edges(unsigned short &edges[], unsigned short& num_edges,
+	unsigned short &values[], unsigned short num_values)
+{
+	num_edges = 0;
+	edges[num_edges++] = 0;
+ 
+	unsigned short i;
+	for (i = 1; i < num_values; i++)
+	{
+		if (abs(values[i] - values[i - 1]) > VALUE_TRESHOLD)
+		{
+			if (i - edges[num_edges - 1] > LENGTH_TRESHOLD)
+			{
+				edges[num_edges++] = i;
+			}
+			else
+			{
+				num_edges--;
+			}
+		}
+	}
+	edges[num_edges++] = i - 1;
+}
+
+void find_closest_object(unsigned short& begin, unsigned short& end,
+	unsigned short &values[], unsigned short num_values,
+	unsigned short &edges[], unsigned short num_edges)
+{
+	unsigned short i;
+	short min_dist = -1;
+	for (i = 1; i < num_edges; i++)
+	{
+		int dist = min(values, edges[i - 1], edges[i]);
+		if (min_dist < 0 || min_dist > dist)
+		{
+			min_dist = dist;
+			begin = edges[i - 1];
+			end = edges[i];
+		}
+	}
+}
+
+void calibrate_sonar_fov(float& fov, 
+	float range, unsigned short num_measurements, // in real world
+	float object_distance, float object_width, // in real world
+	unsigned short object_begin, unsigned short object_end)
+{
+	float angle_interval = range / num_measurements;
+
+	float detected_begin_angle = object_begin * angle_interval;
+	float detected_end_angle = (object_end + 1) * angle_interval;
+	float detected_alpha = detected_end_angle - detected_begin_angle;
+
+	float actual_alpha = atan(object_width / 2 / object_distance);
+	fov = detected_alpha - actual_alpha;
+}
+
+void compute_geometry(float& width, float& begin_angle, float& end_angle,
+	float detected_begin_angle, float detected_end_angle, float distance, float fov)
+{
+	begin_angle = detected_begin_angle + (fov / 2.0);
+	end_angle = detected_end_angle - (fov / 2.0);
+
+	float detected_angle = detected_end_angle - detected_begin_angle;
+	float actual_angle = detected_angle - fov;
+	width = tan(actual_angle / 2.0 * PI / 180.0) * distance;
+}
+
+task main()
+{
+	bool sonar_rev = false;
+ 
+	sonar_init();
+	while (1)
+	{
+		unsigned short num_values = 0;
+		unsigned short values[128] = { 0 };
+		sonar_scan(values, num_values, sonar_rev);
+		
+		print_line(7, NumToStr(num_values) + " measurements");
+		print_line(6, "min dist=" + NumToStr(min(values, 0, num_values - 1)));
+		print_line(5, "max dist=" + NumToStr(max(values, 0, num_values - 1)));
+ 
+		unsigned short num_edges = 0;
+		unsigned short edges[16] = { 0 };
+		find_edges(edges, num_edges, values, num_values);
+ 
+		if (num_edges > 2)
+		{
+			print_line(4, "object(s) found (" + NumToStr(num_edges) + ")");
+
+			unsigned short begin, end;
+			find_closest_object(begin, end,
+				values, num_values, edges, num_edges);
+
+			float range = 180.0; // needs calibration
+			float fov = 45.0; // needs calibration
+			const float angle_interval = range / num_values;
+
+			short distance = min(values, begin, end);
+
+			float width, begin_angle, end_angle;
+			compute_geometry(width, begin_angle, end_angle,
+				begin * angle_interval, end * angle_interval, distance, fov);
+
+			print_line(3, 
+				NumToStr(begin_angle) + "-" + 
+				NumToStr(end_angle) + ", w=" + 
+				NumToStr(width) + "cm, d=" +
+				NumToStr(distance) + "cm");
+		}
+		else
+		{
+			print_line(4, "no objects found");
+			print_line(3, "");
+		}
+ 
+ 		sonar_rev = !sonar_rev;
+		Wait(SONAR_SCAN_TIMEOUT);
+	}
+}

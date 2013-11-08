@@ -1,0 +1,6 @@
+task main()
+{
+	ClearLine(0);
+	TextOut(0, 0, "Hello, world!");
+	Wait(1000);
+}
