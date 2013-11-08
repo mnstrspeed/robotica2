@@ -7,6 +7,10 @@
 #define SONAR_MEASURE_INTERVAL 10
 #define SONAR_SCAN_TIMEOUT 100
  
+#define MOVEMENT_MOTOR_LEFT OUT_B
+#define MOVEMENT_MOTOR_RIGHT OUT_C
+#define MOVEMENT_MOTOR_POWER 100
+
 #define VALUE_TRESHOLD 10
 #define LENGTH_TRESHOLD 1
  
@@ -154,15 +158,22 @@ void calibrate_sonar_fov(float& fov,
 	fov = detected_alpha - actual_alpha;
 }
 
-void compute_geometry(float& width, float& begin_angle, float& end_angle,
+void compute_geometry(float& width, float& angle, float& begin_angle, float& end_angle,
 	float detected_begin_angle, float detected_end_angle, float distance, float fov)
 {
 	begin_angle = detected_begin_angle + (fov / 2.0);
 	end_angle = detected_end_angle - (fov / 2.0);
 
 	float detected_angle = detected_end_angle - detected_begin_angle;
-	float actual_angle = detected_angle - fov;
-	width = tan(actual_angle / 2.0 * PI / 180.0) * distance;
+	angle = detected_angle - fov;
+	width = tan(angle / 2.0 * PI / 180.0) * distance;
+}
+
+void move_to_object(float angle, short distance)
+{
+	//stop moving if moving
+	//rotate_robot(angle);
+	//move again
 }
 
 task main()
@@ -198,8 +209,8 @@ task main()
 
 			short distance = min(values, begin, end);
 
-			float width, begin_angle, end_angle;
-			compute_geometry(width, begin_angle, end_angle,
+			float width, angle, begin_angle, end_angle;
+			compute_geometry(width, angle, begin_angle, end_angle,
 				begin * angle_interval, end * angle_interval, distance, fov);
 
 			print_line(3, 
@@ -207,6 +218,8 @@ task main()
 				NumToStr(end_angle) + ", w=" + 
 				NumToStr(width) + "cm, d=" +
 				NumToStr(distance) + "cm");
+
+			move_to_object(angle, distance);
 		}
 		else
 		{
