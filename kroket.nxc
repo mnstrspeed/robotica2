@@ -1,25 +1,31 @@
 #define SONAR_MOTOR OUT_A
-#define SONAR_BEGIN IN_1
-#define SONAR_END IN_2
-#define SONAR_SENSOR IN_3
+#define SONAR_BEGIN IN_2
+#define SONAR_END IN_1
+#define SONAR_SENSOR IN_4
 
-#define SONAR_MOTOR_POWER 30
+#define SONAR_MOTOR_POWER 40
 #define SONAR_MEASURE_INTERVAL 10
 #define SONAR_SCAN_TIMEOUT 100
- 
+
 #define MOVEMENT_MOTOR_LEFT OUT_B
 #define MOVEMENT_MOTOR_RIGHT OUT_C
 #define MOVEMENT_MOTOR_POWER 100
 
 #define VALUE_TRESHOLD 10
-#define LENGTH_TRESHOLD 1
- 
+#define LENGTH_TRESHOLD 3
+
 void print_line(byte line, string str)
 {
 	ClearLine(line);
 	TextOut(0, line << 3, str);
 }
- 
+
+void debug_line(string str)
+{
+	SendResponseString(MAILBOX10, str);
+	Wait(50);
+}
+
 void reverse(unsigned short &values[], unsigned short num_values)
 {
 	unsigned short i;
@@ -31,7 +37,7 @@ void reverse(unsigned short &values[], unsigned short num_values)
 		values[num_values - 1 - i] = temp;
 	}
 }
- 
+
 unsigned short min(unsigned short &values[], unsigned short begin, unsigned short end)
 {
 	unsigned short min = values[begin];
@@ -45,7 +51,7 @@ unsigned short min(unsigned short &values[], unsigned short begin, unsigned shor
 	}
 	return min;
 }
- 
+
 unsigned short max(unsigned short &values[], unsigned short begin, unsigned short end)
 {
 	unsigned short max = values[begin];
@@ -59,7 +65,7 @@ unsigned short max(unsigned short &values[], unsigned short begin, unsigned shor
 	}
 	return max;
 }
- 
+
 void sonar_init()
 {
 	SetSensorType(SONAR_BEGIN, SENSOR_TYPE_TOUCH);
@@ -69,7 +75,7 @@ void sonar_init()
 	SetSensorUltrasonic(SONAR_SENSOR);
 	Off(SONAR_MOTOR);
 }
- 
+
 void turn_sonar(bool rev)
 {
 	if (rev)
@@ -81,12 +87,12 @@ void turn_sonar(bool rev)
 		OnFwd(SONAR_MOTOR, SONAR_MOTOR_POWER);
 	}
 }
- 
+
 void sonar_scan(unsigned short &values[], unsigned short& num_values, bool rev)
 {
 	num_values = 0;
 	byte turn_touch = rev ? SONAR_BEGIN : SONAR_END;
- 
+
 	turn_sonar(rev);
 	while (!SensorBoolean(turn_touch))
 	{
@@ -94,19 +100,19 @@ void sonar_scan(unsigned short &values[], unsigned short& num_values, bool rev)
 		Wait(SONAR_MEASURE_INTERVAL);
 	}
 	Off(SONAR_MOTOR);
- 
+
 	if (rev)
 	{
 		reverse(values, num_values);
 	}
 }
- 
+
 void find_edges(unsigned short &edges[], unsigned short& num_edges,
 	unsigned short &values[], unsigned short num_values)
 {
 	num_edges = 0;
 	edges[num_edges++] = 0;
- 
+
 	unsigned short i;
 	for (i = 1; i < num_values; i++)
 	{
@@ -143,7 +149,7 @@ void find_closest_object(unsigned short& begin, unsigned short& end,
 	}
 }
 
-void calibrate_sonar_fov(float& fov, 
+void calibrate_sonar_fov(float& fov,
 	float range, unsigned short num_measurements, // in real world
 	float object_distance, float object_width, // in real world
 	unsigned short object_begin, unsigned short object_end)
@@ -176,28 +182,51 @@ void move_to_object(float angle, short distance)
 	//move again
 }
 
+void debug_values(unsigned short& values[], unsigned short num_values)
+{
+    string x = "[";
+
+    unsigned short i;
+    for (i = 0; i < num_values - 1; i++)
+    {
+        x += NumToStr(values[i]) + ",";
+        if (i > 0 && i % 8 == 0)
+        {
+           debug_line(x);
+           x = "";
+        }
+    }
+    x += NumToStr(values[i]) + "]";
+    
+    debug_line(x);
+}
+
 task main()
 {
 	bool sonar_rev = false;
- 
+
 	sonar_init();
 	while (1)
 	{
 		unsigned short num_values = 0;
 		unsigned short values[128] = { 0 };
 		sonar_scan(values, num_values, sonar_rev);
-		
-		print_line(7, NumToStr(num_values) + " measurements");
-		print_line(6, "min dist=" + NumToStr(min(values, 0, num_values - 1)));
-		print_line(5, "max dist=" + NumToStr(max(values, 0, num_values - 1)));
- 
+
+    debug_values(values, num_values);
+    /*
+		debug_line("\n");
+
+		debug_line(NumToStr(num_values) + " measurements");
+		debug_line("min dist=" + NumToStr(min(values, 0, num_values - 1)));
+		debug_line("max dist=" + NumToStr(max(values, 0, num_values - 1)));
+
 		unsigned short num_edges = 0;
 		unsigned short edges[16] = { 0 };
 		find_edges(edges, num_edges, values, num_values);
- 
+
 		if (num_edges > 2)
 		{
-			print_line(4, "object(s) found (" + NumToStr(num_edges) + ")");
+			debug_line("object(s) found (" + NumToStr(num_edges) + ")");
 
 			unsigned short begin, end;
 			find_closest_object(begin, end,
@@ -213,20 +242,20 @@ task main()
 			compute_geometry(width, angle, begin_angle, end_angle,
 				begin * angle_interval, end * angle_interval, distance, fov);
 
-			print_line(3, 
-				NumToStr(begin_angle) + "-" + 
-				NumToStr(end_angle) + ", w=" + 
-				NumToStr(width) + "cm, d=" +
-				NumToStr(distance) + "cm");
+			debug_line(
+				NumToStr(begin_angle) + "-" +
+				NumToStr(end_angle));
+			debug_line("w=" +
+				NumToStr(width) + " cm, d=" +
+				NumToStr(distance) + " cm");
 
 			move_to_object(angle, distance);
 		}
 		else
 		{
-			print_line(4, "no objects found");
-			print_line(3, "");
+			debug_line("no objects found");
 		}
- 
+    */
  		sonar_rev = !sonar_rev;
 		Wait(SONAR_SCAN_TIMEOUT);
 	}
