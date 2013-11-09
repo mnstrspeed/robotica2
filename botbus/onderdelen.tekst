@@ -1,0 +1,18 @@
+1x - LD1117V33C 3.3V regulator - (U1) 
+			**circuit gebruikt gelijkwaardig onderdeel
+1x - PIC18F14K50 processor - (U2)
+
+1x - 12MHz kristal oscilator - (X1)
+
+1x - 100nF 50V X7R cap - (C1)
+1x - 10uF X7R cap- (C2)
+1x - 470nF 16V X7R cap - (C3)
+2x - 22pF 100V C0G- (C4-C5)
+
+3x - 2.5V 20mA groene led - (LED1-LED3)
+3x - 47 Ohm 1/8 Watt resistor - (R1-R3)
+
+1x - USB-B port  - (USB-B)
+1x - 6pin header - (ICSP)
+1x - TRX-1 2.4GHz - (TRX-1)
+
