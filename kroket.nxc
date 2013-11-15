@@ -7,12 +7,16 @@
 #define SONAR_MEASURE_INTERVAL 10
 #define SONAR_SCAN_TIMEOUT 100
 
-#define MOVEMENT_MOTOR_LEFT OUT_B
-#define MOVEMENT_MOTOR_RIGHT OUT_C
+#define MOVEMENT_MOTOR_LEFT OUT_C
+#define MOVEMENT_MOTOR_RIGHT OUT_B
+#define MOVEMENT_MOTOR_TURN_POWER 60
+#define MOVEMENT_MOTORS OUT_BC
 #define MOVEMENT_MOTOR_POWER 100
 
 #define VALUE_TRESHOLD 10
 #define LENGTH_TRESHOLD 3
+
+#define ANGLE_MIDDLE 90
 
 void print_line(byte line, string str)
 {
@@ -74,6 +78,7 @@ void sonar_init()
 	SetSensorMode(SONAR_END, SENSOR_MODE_BOOL);
 	SetSensorUltrasonic(SONAR_SENSOR);
 	Off(SONAR_MOTOR);
+	Off(MOVEMENT_MOTORS);
 }
 
 void turn_sonar(bool rev)
@@ -177,6 +182,21 @@ void compute_geometry(float& width, float& angle, float& begin_angle, float& end
 	width = tan(angle / 2.0 * PI / 180.0) * distance;
 }
 
+void turn_degrees(float object_angle)
+{
+	float angle = object_angle - ANGLE_MIDDLE;
+
+	byte fwd_motor = angle < 0 ? MOVEMENT_MOTOR_RIGHT : MOVEMENT_MOTOR_LEFT;
+	byte rev_motor = angle >= 0 ? MOVEMENT_MOTOR_LEFT : MOVEMENT_MOTOR_RIGHT;
+
+	OnFwd(fwd_motor, MOVEMENT_MOTOR_TURN_POWER);
+	OnRev(rev_motor, MOVEMENT_MOTOR_TURN_POWER); 
+
+	Wait(500);
+
+	Off(MOVEMENT_MOTORS);
+}
+
 void move_to_object(float angle, short distance)
 {
 	//stop moving if moving
@@ -207,6 +227,13 @@ task main()
 {
 	bool sonar_rev = false;
 
+	while (1)
+	{
+		turn_degrees(0.0);
+		Wait(5000);
+	}
+
+/*
 	sonar_init();
 	while (1)
 	{
@@ -235,7 +262,7 @@ task main()
 				values, num_values, edges, num_edges);
 
 			float range = 180.0; // needs calibration
-			float fov = 45.0; // needs calibration
+			float fov = 85.0; // needs calibration
 			const float angle_interval = range / num_values;
 
 			short distance = min(values, begin, end);
@@ -261,4 +288,5 @@ task main()
  		sonar_rev = !sonar_rev;
 		Wait(SONAR_SCAN_TIMEOUT);
 	}
+	*/
 }
