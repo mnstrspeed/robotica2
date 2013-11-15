@@ -107,6 +107,8 @@ void sonar_scan(unsigned short &values[], unsigned short& num_values, bool rev)
 	}
 }
 
+// edge := [edges[i - 1], edges[i]) 
+// begin inclusive, end exclusive
 void find_edges(unsigned short &edges[], unsigned short& num_edges,
 	unsigned short &values[], unsigned short num_values)
 {
@@ -128,7 +130,7 @@ void find_edges(unsigned short &edges[], unsigned short& num_edges,
 			}
 		}
 	}
-	edges[num_edges++] = i - 1;
+	edges[num_edges++] = i;
 }
 
 void find_closest_object(unsigned short& begin, unsigned short& end,
@@ -212,8 +214,8 @@ task main()
 		unsigned short values[128] = { 0 };
 		sonar_scan(values, num_values, sonar_rev);
 
-    debug_values(values, num_values);
-    /*
+        //debug_values(values, num_values);
+    
 		debug_line("\n");
 
 		debug_line(NumToStr(num_values) + " measurements");
@@ -255,7 +257,7 @@ task main()
 		{
 			debug_line("no objects found");
 		}
-    */
+    
  		sonar_rev = !sonar_rev;
 		Wait(SONAR_SCAN_TIMEOUT);
 	}
