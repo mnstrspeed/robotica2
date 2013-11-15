@@ -9,7 +9,7 @@
 
 #define MOVEMENT_MOTOR_LEFT OUT_C
 #define MOVEMENT_MOTOR_RIGHT OUT_B
-#define MOVEMENT_MOTOR_TURN_POWER 60
+#define MOVEMENT_MOTOR_TURN_POWER 40
 #define MOVEMENT_MOTORS OUT_BC
 #define MOVEMENT_MOTOR_POWER 100
 
@@ -17,6 +17,7 @@
 #define LENGTH_TRESHOLD 3
 
 #define ANGLE_MIDDLE 90
+#define MS_PER_DEGREE (500.0 / 45.0)
 
 void print_line(byte line, string str)
 {
@@ -187,12 +188,12 @@ void turn_degrees(float object_angle)
 	float angle = object_angle - ANGLE_MIDDLE;
 
 	byte fwd_motor = angle < 0 ? MOVEMENT_MOTOR_RIGHT : MOVEMENT_MOTOR_LEFT;
-	byte rev_motor = angle >= 0 ? MOVEMENT_MOTOR_LEFT : MOVEMENT_MOTOR_RIGHT;
+	byte rev_motor = angle < 0 ? MOVEMENT_MOTOR_LEFT : MOVEMENT_MOTOR_RIGHT;
 
 	OnFwd(fwd_motor, MOVEMENT_MOTOR_TURN_POWER);
 	OnRev(rev_motor, MOVEMENT_MOTOR_TURN_POWER); 
 
-	Wait(500);
+	Wait(ange * MS_PER_DEGREE);
 
 	Off(MOVEMENT_MOTORS);
 }
@@ -229,7 +230,10 @@ task main()
 
 	while (1)
 	{
+		turn_degrees(180.0);
 		turn_degrees(0.0);
+		turn_degrees(0.0);
+		turn_degrees(180.0);
 		Wait(5000);
 	}
 
