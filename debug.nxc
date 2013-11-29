@@ -1,0 +1,11 @@
+void print_line(byte line, string str)
+{
+	ClearLine(line);
+	TextOut(0, line << 3, str);
+}
+
+void debug_line(string str)
+{
+	SendResponseString(MAILBOX10, str);
+	Wait(50);
+}
