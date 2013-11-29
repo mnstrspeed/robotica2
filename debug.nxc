@@ -9,3 +9,22 @@ void debug_line(string str)
 	SendResponseString(MAILBOX10, str);
 	Wait(50);
 }
+
+void debug_values(unsigned short& values[], unsigned short num_values)
+{
+    string x = "[";
+
+    unsigned short i;
+    for (i = 0; i < num_values - 1; i++)
+    {
+        x += NumToStr(values[i]) + ",";
+        if (i > 0 && i % 8 == 0)
+        {
+           debug_line(x);
+           x = "";
+        }
+    }
+    x += NumToStr(values[i]) + "]";
+    
+    debug_line(x);
+}
