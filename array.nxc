@@ -1,0 +1,39 @@
+void reverse(unsigned short &values[], unsigned short num_values)
+{
+	unsigned short i;
+	unsigned short temp;
+	for (i = 0; i < num_values / 2; i++)
+	{
+		temp = values[i];
+		values[i] = values[num_values - 1 - i];
+		values[num_values - 1 - i] = temp;
+	}
+}
+
+unsigned short min(unsigned short &values[], unsigned short begin, unsigned short end)
+{
+	unsigned short min = values[begin];
+	unsigned short i;
+	for (i = begin + 1; i <= end; i++)
+	{
+		if (min > values[i])
+		{
+			min = values[i];
+		}
+	}
+	return min;
+}
+
+unsigned short max(unsigned short &values[], unsigned short begin, unsigned short end)
+{
+	unsigned short max = values[begin];
+	unsigned short i;
+	for (i = begin + 1; i <= end; i++)
+	{
+		if (max < values[i])
+		{
+			max = values[i];
+		}
+	}
+	return max;
+}
