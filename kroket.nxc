@@ -4,6 +4,7 @@
 #define SONAR_SENSOR IN_4
 
 #define SONAR_MOTOR_POWER 40
+#define SONAR_STEP_INTERVAL 10
 #define SONAR_MEASURE_INTERVAL 10
 #define SONAR_SCAN_TIMEOUT 100
 
@@ -94,18 +95,27 @@ void turn_sonar(bool rev)
 	}
 }
 
+void sonar_step(bool rev)
+{
+	turn_sonar(rev);
+	Wait(SONAR_STEP_INTERVAL);
+	Off(SONAR_MOTOR);
+	Wait(SONAR_MEASURE_INTERVAL);
+}
+
 void sonar_scan(unsigned short &values[], unsigned short& num_values, bool rev)
 {
 	num_values = 0;
 	byte turn_touch = rev ? SONAR_BEGIN : SONAR_END;
 
-	turn_sonar(rev);
+	/* turn_sonar(rev); */
 	while (!SensorBoolean(turn_touch))
 	{
+		sonar_step(rev);
 		values[num_values++] = SensorUS(SONAR_SENSOR);
-		Wait(SONAR_MEASURE_INTERVAL);
+		/* Wait(SONAR_MEASURE_INTERVAL); */
 	}
-	Off(SONAR_MOTOR);
+	/* Off(SONAR_MOTOR); */
 
 	if (rev)
 	{
