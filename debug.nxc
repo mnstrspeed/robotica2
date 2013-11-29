@@ -24,7 +24,7 @@ void debug_values(unsigned short& values[], unsigned short num_values)
            x = "";
         }
     }
-    x += NumToStr(values[i]) + "]";
+    x += NumToStr(values[i]) + "]\n";
     
     debug_line(x);
 }
