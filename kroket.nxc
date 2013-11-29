@@ -166,25 +166,6 @@ void move_to_object(float angle, short distance)
 	//move again
 }
 
-void debug_values(unsigned short& values[], unsigned short num_values)
-{
-    string x = "[";
-
-    unsigned short i;
-    for (i = 0; i < num_values - 1; i++)
-    {
-        x += NumToStr(values[i]) + ",";
-        if (i > 0 && i % 8 == 0)
-        {
-           debug_line(x);
-           x = "";
-        }
-    }
-    x += NumToStr(values[i]) + "]";
-    
-    debug_line(x);
-}
-
 task main()
 {
 	bool sonar_rev = false;
@@ -198,7 +179,6 @@ task main()
 		Wait(5000);
 	}
 
-/*
 	sonar_init();
 	while (1)
 	{
@@ -253,5 +233,4 @@ task main()
  		sonar_rev = !sonar_rev;
 		Wait(SONAR_SCAN_TIMEOUT);
 	}
-	*/
 }
