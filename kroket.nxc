@@ -1,3 +1,6 @@
+#include "array.nxc"
+#include "debug.nxc"
+
 #define SONAR_MOTOR OUT_A
 #define SONAR_BEGIN IN_2
 #define SONAR_END IN_1
@@ -18,58 +21,6 @@
 
 #define ANGLE_MIDDLE 90
 #define MS_PER_DEGREE (500.0 / 45.0)
-
-void print_line(byte line, string str)
-{
-	ClearLine(line);
-	TextOut(0, line << 3, str);
-}
-
-void debug_line(string str)
-{
-	SendResponseString(MAILBOX10, str);
-	Wait(50);
-}
-
-void reverse(unsigned short &values[], unsigned short num_values)
-{
-	unsigned short i;
-	unsigned short temp;
-	for (i = 0; i < num_values / 2; i++)
-	{
-		temp = values[i];
-		values[i] = values[num_values - 1 - i];
-		values[num_values - 1 - i] = temp;
-	}
-}
-
-unsigned short min(unsigned short &values[], unsigned short begin, unsigned short end)
-{
-	unsigned short min = values[begin];
-	unsigned short i;
-	for (i = begin + 1; i <= end; i++)
-	{
-		if (min > values[i])
-		{
-			min = values[i];
-		}
-	}
-	return min;
-}
-
-unsigned short max(unsigned short &values[], unsigned short begin, unsigned short end)
-{
-	unsigned short max = values[begin];
-	unsigned short i;
-	for (i = begin + 1; i <= end; i++)
-	{
-		if (max < values[i])
-		{
-			max = values[i];
-		}
-	}
-	return max;
-}
 
 void sonar_init()
 {
