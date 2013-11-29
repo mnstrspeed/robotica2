@@ -118,6 +118,8 @@ void find_closest_object(unsigned short& begin, unsigned short& end,
 	}
 }
 
+//Mijn eerste edit op GROTHUB
+
 void calibrate_sonar_fov(float& fov,
 	float range, unsigned short num_measurements, // in real world
 	float object_distance, float object_width, // in real world
