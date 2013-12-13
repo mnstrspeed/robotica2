@@ -1,0 +1,165 @@
+#if !defined(IS_MASTER) && !defined(IS_SLAVE)
+#error Geen master of slave rol opgegeven!
+#endif
+
+/* in e'e'n bot connector's omdraaien */
+#define MOTOR_BINNEN         ...
+#define MOTOR_BUITEN         ...
+#define DRAAI_SNELHEID       ...
+#define DRAAI_DUUR           ...
+#define BEWEEG_SNELHEID      ...
+#define PORT_OORSPRONG       ...
+#define PORT_SONAR           ...
+#define BLUETOOTH_CONNECTION CONN_BT0
+#define BLUETOOTH_BOX        MAILBOX1
+
+typedef struct
+{
+	int master_richting;
+	int slave_richting;
+	int master_afstand;
+	int slave_afstand;
+} Beweging;
+
+bool vis_gevangen()
+{
+	/* return of de vis gevangen is */
+}
+
+void zend_getal(int g)
+{
+	/* zend over bluetooth */
+}
+
+int ontvang_getal()
+{
+	/* ontvang over bluetooth */
+}
+
+void slave_start()
+{
+	/* start een programma op een via bluetooth verbonden brick */
+}
+
+int ontvang_hoek()
+{
+	return ontvang_getal();
+}
+
+void zend_hoek(int a)
+{
+	zend_getal(a);
+}
+
+void ontvang_beweging(Beweging& b)
+{
+	b.master_richting = ontvang_getal();
+	b.slave_richting  = ontvang_getal();
+	b.master_afstand  = ontvang_getal();
+	b.slave_afstand   = ontvang_getal();
+}
+
+void zend_beweging(Beweging& b)
+{
+	zend_getal(b.master_richting);
+	zend_getal(b.slave_richting);
+	zend_getal(b.master_afstand);
+	zend_getal(b.slave_afstand);
+}
+
+void positie_herstel()
+{
+	while (!SensorBoolean(PORT_OORSPRONG))
+	{
+		positie_draai(-1);
+	}
+}
+
+void positie_draai(int a)
+{
+	int i;
+	int dir = a > 0;
+	
+	a = abs(a);
+	
+	for (i=0;i<a;++i)
+	{
+		if (dir) {OnFwd(MOTOR_BUITEN, DRAAI_SNELHEID);}
+		else     {OnRev(MOTOR_BUITEN, DRAAI_SNELHEID);}
+		Wait(DRAAI_DUUR);
+		Off(MOTOR_BUITEN);
+	}
+}
+
+void positie_beweeg(int afstnd)
+{
+	OnFwd(MOTOR_BUITEN, BEWEEG_SNELHEID);
+	OnFwd(MOTOR_BINNEN, BEWEEG_SNELHEID);
+	Wait(afstnd);
+	Off(MOTOR_BUITEN);
+	Off(MOTOR_BINNEN);
+}
+
+int zoek_vis()
+{
+	/* draai tot andere bot onzichtbaar is */
+	
+	/* draai tot vis in zicht is */
+	
+	/* roteer tot sonar vis detecteerd */
+}
+
+void beweging_bereken(int a, int a2, Beweging& b)
+{
+	/* bereken de beweging voor de master en slave visser */
+}
+
+void beweging_beweeg(int richt, int afstnd)
+{
+	positie_herstel();
+	positie_draai(richt);
+	positie_beweeg(afstnd);
+}
+
+void init_bluetooth()
+{
+	while (BluetoothStatus(ROBOT_CONNECTION) != NO_ERR)
+	{
+		Wait(100);
+	}
+}
+
+task main()
+{
+	Beweging b;
+	int      a;
+#ifdef IS_MASTER
+	int      a2;
+#endif
+	
+	init_bluetooth();
+	
+#ifdef IS_MASTER
+	com_slave_start();
+#endif
+
+	while (!vis_gevangen())
+	{
+		positie_herstel();
+		a = zoek_vis();
+		
+#ifdef IS_MASTER
+		a2 = ontvang_hoek();
+		beweging_bereken(a, a2, b);
+		zend_beweging(b);
+		beweging_beweeg(b.master_richting, b.master_afstand);
+#else
+		zend_hoek(a);
+		ontvang_beweging(b);
+		beweging_beweeg(b.slave_richting, b.slave_afstand);
+#endif
+	}
+	
+	/* overwinnings loop */
+	while (true);
+}
