@@ -2,16 +2,27 @@
 #error Geen master of slave rol opgegeven!
 #endif
 
-/* in e'e'n bot connector's omdraaien */
 #define MOTOR_BINNEN         ...
 #define MOTOR_BUITEN         ...
-#define DRAAI_SNELHEID       ...
-#define DRAAI_DUUR           ...
 #define BEWEEG_SNELHEID      ...
-#define PORT_OORSPRONG       ...
-#define PORT_SONAR           ...
+#define POORT_OORSPRONG      ...
+#define POORT_SONAR          ...
+#define SONAR_AFWIJKING      5
 #define BLUETOOTH_CONNECTION CONN_BT0
 #define BLUETOOTH_BOX        MAILBOX1
+#define BLUETOOTH_TIMEOUT    500
+
+#define DRAAI_SNELHEID       100
+#define DRAAI_DUUR           25
+#define DRAAI_STOP_DUUR      250
+
+#define HOEK_MAX     75
+#define HOEK_VOORUIT 40
+#define HOEK_ROTEER  35
+
+#define STAP_AFSTAND ...
+
+#define ONGEVEER_GELIJK(a, b, afwijk) (a >= b-afwijk && a <= b+afwijk)
 
 typedef struct
 {
@@ -28,12 +39,20 @@ bool vis_gevangen()
 
 void zend_getal(int g)
 {
-	/* zend over bluetooth */
+	while (SendRemoteNumber(BLUETOOTH_CONNECTION, BLUETOOTH_BOX, g) != NO_ERR)
+	{
+		Wait(BLUETOOTH_TIMEOUT);
+	}
 }
 
 int ontvang_getal()
 {
-	/* ontvang over bluetooth */
+	int g;
+	while (ReceiveRemoteNumber(BLUETOOTH_CONNECTION, BLUETOOTH_BOX, g) != NO_ERR)
+	{
+		Wait(BLUETOOTH_TIMEOUT);
+	}
+	return g;
 }
 
 void slave_start()
@@ -67,14 +86,6 @@ void zend_beweging(Beweging& b)
 	zend_getal(b.slave_afstand);
 }
 
-void positie_herstel()
-{
-	while (!SensorBoolean(PORT_OORSPRONG))
-	{
-		positie_draai(-1);
-	}
-}
-
 void positie_draai(int a)
 {
 	int i;
@@ -84,15 +95,29 @@ void positie_draai(int a)
 	
 	for (i=0;i<a;++i)
 	{
-		if (dir) {OnFwd(MOTOR_BUITEN, DRAAI_SNELHEID);}
-		else     {OnRev(MOTOR_BUITEN, DRAAI_SNELHEID);}
+		if (dir) {OnRev(MOTOR_BUITEN, DRAAI_SNELHEID);}
+		else     {OnFwd(MOTOR_BUITEN, DRAAI_SNELHEID);}
 		Wait(DRAAI_DUUR);
 		Off(MOTOR_BUITEN);
+		Wait(DRAAI_STOP_DUUR);
+	}
+}
+
+void positie_herstel()
+{
+	while (!SensorBoolean(POORT_OORSPRONG))
+	{
+		positie_draai(-1);
 	}
 }
 
 void positie_beweeg(int afstnd)
 {
+	if (afstnd)
+	{
+		return;
+	}
+
 	OnFwd(MOTOR_BUITEN, BEWEEG_SNELHEID);
 	OnFwd(MOTOR_BINNEN, BEWEEG_SNELHEID);
 	Wait(afstnd);
@@ -102,16 +127,55 @@ void positie_beweeg(int afstnd)
 
 int zoek_vis()
 {
-	/* draai tot andere bot onzichtbaar is */
+	int  a          = 0;
+	bool bot        = false;
+	int  bot_afstnd = SensorUS(POORT_SONAR);
 	
-	/* draai tot vis in zicht is */
+	while (ONGEVEER_GELIJK(SensorUS(POORT_SONAR), bot_afstnd, SONAR_AFWIJKING))
+	{
+		positie_draai(1);
+		++a;
+	}
 	
-	/* roteer tot sonar vis detecteerd */
+	while (ONGEVEER_GELIJK(SensorUS(POORT_SONAR), 0xFF, SONAR_AFWIJKING) && a < HOEK_MAX)
+	{
+		positie_draai(1);
+		++a;
+	}
+	
+	return a;
 }
 
-void beweging_bereken(int a, int a2, Beweging& b)
+void beweging_bereken(int Al, int Ar, Beweging& b)
 {
-	/* bereken de beweging voor de master en slave visser */
+	if (Al == HOEK_MAX && Ar == HOEK_MAX)
+	{
+		/* draai 180 graden */
+	}
+	else if (Al > HOEK_VOORUIT && Al != HOEK_MAX)
+	{
+		/* draai linksom */
+		b.richting_links  = 0;
+		b.richting_rechts = HOEK_ROTEER;
+		b.afstand_links   = 0;
+		b.afstand_rechts  = STAP_AFSTAND;
+	}
+	else if (Ar > HOEK_VOORUIT && Ar != HOEK_MAX)
+	{
+		/* draai rechtsom */
+		b.richting_links  = HOEK_ROTEER;
+		b.richting_rechts = 0;
+		b.afstand_links   = STAP_AFSTAND;
+		b.afstand_rechts  = 0;
+	}
+	else
+	{
+		/* beweeg vooruit */
+		b.richting_links  = HOEK_VOORUIT;
+		b.richting_rechts = HOEK_VOORUIT;
+		b.afstand_links   = STAP_AFSTAND;
+		b.afstand_rechts  = STAP_AFSTAND;
+	}
 }
 
 void beweging_beweeg(int richt, int afstnd)
@@ -123,7 +187,7 @@ void beweging_beweeg(int richt, int afstnd)
 
 void init_bluetooth()
 {
-	while (BluetoothStatus(ROBOT_CONNECTION) != NO_ERR)
+	while (BluetoothStatus(BLUETOOTH_CONNECTION) != NO_ERR)
 	{
 		Wait(100);
 	}
@@ -140,7 +204,7 @@ task main()
 	init_bluetooth();
 	
 #ifdef IS_MASTER
-	com_slave_start();
+	slave_start();
 #endif
 
 	while (!vis_gevangen())
