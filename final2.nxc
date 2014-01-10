@@ -1,0 +1,263 @@
+#define IS_MASTER
+
+#if !defined(IS_MASTER) && !defined(IS_SLAVE)
+#error Geen master of slave rol opgegeven!
+#endif
+
+#define MOTOR_BINNEN         OUT_C
+#define MOTOR_BUITEN         OUT_A
+#define POORT_OORSPRONG      IN_2
+#define POORT_SONAR          IN_1
+#define SONAR_AFWIJKING      5
+#define BLUETOOTH_BOX        MAILBOX2
+#define BLUETOOTH_TIMEOUT    500
+
+#ifdef IS_MASTER
+#define BTCON_IN  CONN_BT0
+#define BTCON_UIT CONN_BT1
+#define BT_NAAM   "Recon"
+#else
+#define BTCON_IN  CONN_BT1
+#define BTCON_UIT CONN_BT0
+#define BT_NAAM   "NXT"
+#endif
+
+#define BEWEEG_SNELHEID      100
+#define DRAAI_SNELHEID       100
+#define DRAAI_DUUR           25
+#define DRAAI_STOP_DUUR      250
+
+#define HOEK_MAX     75
+#define HOEK_VOORUIT 40
+#define HOEK_ROTEER  35
+
+#define STAP_AFSTAND 100
+
+#define ONGEVEER_GELIJK(a, b, afwijk) (a >= b-afwijk && a <= b+afwijk)
+
+typedef struct
+{
+	int master_richting;
+	int slave_richting;
+	int master_afstand;
+	int slave_afstand;
+} Beweging;
+
+void sensors_init()
+{
+	SetSensorType(POORT_OORSPRONG, SENSOR_TYPE_TOUCH);
+	SetSensorMode(POORT_OORSPRONG, SENSOR_MODE_BOOL);
+	SetSensorUltrasonic(POORT_SONAR);
+	Off(MOTOR_BINNEN);
+	Off(MOTOR_BUITEN);
+}
+
+bool vis_gevangen()
+{
+	/* return of de vis gevangen is */
+}
+
+void zend_getal(int g)
+{
+	while (BluetoothStatus(BTCON_UIT) != NO_ERR);
+	SendRemoteNumber(BTCON_UIT, BLUETOOTH_BOX, g);
+}
+
+int ontvang_getal()
+{
+	int g;
+	while (BluetoothStatus(BTCON_IN) != NO_ERR);
+	while (ReceiveRemoteNumber(BLUETOOTH_BOX, true, g) != NO_ERR)
+	{
+		Wait(BLUETOOTH_TIMEOUT);
+	}	
+	return g;
+}
+
+void slave_stop()
+{
+	RemoteStopProgram(BTCON_UIT);
+}
+
+int ontvang_hoek()
+{
+	return ontvang_getal();
+}
+
+void zend_hoek(int a)
+{
+	zend_getal(a);
+}
+
+void ontvang_beweging(Beweging& b)
+{
+	b.master_richting = ontvang_getal();
+	b.slave_richting  = ontvang_getal();
+	b.master_afstand  = ontvang_getal();
+	b.slave_afstand   = ontvang_getal();
+}
+
+void zend_beweging(Beweging& b)
+{
+	zend_getal(b.master_richting);
+	zend_getal(b.slave_richting);
+	zend_getal(b.master_afstand);
+	zend_getal(b.slave_afstand);
+}
+
+void positie_draai(int a)
+{
+	int i;
+	int dir = a > 0;
+
+	a = abs(a);
+
+	for (i=0;i<a;++i)
+	{
+		if (dir) {OnRev(MOTOR_BUITEN, DRAAI_SNELHEID);}
+		else     {OnFwd(MOTOR_BUITEN, DRAAI_SNELHEID);}
+		Wait(DRAAI_DUUR);
+		Off(MOTOR_BUITEN);
+		Wait(DRAAI_STOP_DUUR);
+	}
+}
+
+void positie_herstel()
+{
+	while (!SensorBoolean(POORT_OORSPRONG))
+	{
+		positie_draai(-1);
+	}
+}
+
+void positie_beweeg(int afstnd)
+{
+	if (afstnd)
+	{
+		return;
+	}
+
+	OnFwd(MOTOR_BUITEN, BEWEEG_SNELHEID);
+	OnFwd(MOTOR_BINNEN, BEWEEG_SNELHEID);
+	Wait(afstnd);
+	Off(MOTOR_BUITEN);
+	Off(MOTOR_BINNEN);
+}
+
+int zoek_vis()
+{
+	int  a          = 0;
+	bool bot        = false;
+	int  bot_afstnd = SensorUS(POORT_SONAR);
+
+	while (ONGEVEER_GELIJK(SensorUS(POORT_SONAR), bot_afstnd, SONAR_AFWIJKING))
+	{
+		positie_draai(1);
+		++a;
+	}
+
+	while (ONGEVEER_GELIJK(SensorUS(POORT_SONAR), 0xFF, SONAR_AFWIJKING) && a < HOEK_MAX)
+	{
+		positie_draai(1);
+		++a;
+	}
+
+	return a;
+}
+
+void beweging_bereken(int Al, int Ar, Beweging& b)
+{
+	if (Al == HOEK_MAX && Ar == HOEK_MAX)
+	{
+		/* draai 180 graden */
+	}
+	else if (Al > HOEK_VOORUIT && Al != HOEK_MAX)
+	{
+		/* draai linksom */
+		b.master_richting = 0;
+		b.slave_richting  = HOEK_ROTEER;
+		b.master_afstand  = 0;
+		b.slave_afstand   = STAP_AFSTAND;
+	}
+	else if (Ar > HOEK_VOORUIT && Ar != HOEK_MAX)
+	{
+		/* draai rechtsom */
+		b.master_richting = HOEK_ROTEER;
+		b.slave_richting  = 0;
+		b.master_afstand  = STAP_AFSTAND;
+		b.slave_afstand   = 0;
+	}
+	else
+	{
+		/* beweeg vooruit */
+		b.master_richting = HOEK_VOORUIT;
+		b.slave_richting  = HOEK_VOORUIT;
+		b.master_afstand  = STAP_AFSTAND;
+		b.slave_afstand   = STAP_AFSTAND;
+	}
+}
+
+void beweging_beweeg(int richt, int afstnd)
+{
+	positie_herstel();
+	positie_draai(richt);
+	positie_beweeg(afstnd);
+}
+
+void init_bluetooth()
+{
+	CommBTConnectionType btc;
+	
+	btc.Name           = BT_NAAM;
+	btc.ConnectionSlot = BTCON_UIT;
+	btc.Action         = true;
+	
+	SysCommBTConnection(btc);
+	while (BluetoothStatus(BTCON_UIT) != NO_ERR)
+	{
+		Wait(BLUETOOTH_TIMEOUT);
+	}
+
+#ifdef IS_MASTER
+	RemoteStartProgram(BTCON_UIT, "test.rxe");
+	PlaySound(SOUND_FAST_UP);
+#endif
+}
+
+task main()
+{
+	Beweging b;
+	int      a;
+#ifdef IS_MASTER
+	int      a2;
+#endif
+
+	sensors_init();
+	init_bluetooth();
+
+
+	while (!vis_gevangen())
+	{
+		positie_herstel();
+		a = zoek_vis();
+
+#ifdef IS_MASTER
+		a2 = ontvang_hoek();
+		beweging_bereken(a, a2, b);
+		zend_beweging(b);
+		beweging_beweeg(b.master_richting, b.master_afstand);
+#else
+		zend_hoek(a);
+		ontvang_beweging(b);
+		beweging_beweeg(b.slave_richting, b.slave_afstand);
+#endif
+		PlaySound(SOUND_CLICK);
+	}
+
+#ifdef IS_MASTER
+	slave_stop();
+#endif
+	
+	/* overwinnings loop */
+	while (true);
+}
