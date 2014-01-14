@@ -1,0 +1,37 @@
+void PrintDebug(byte line, string str)
+{
+    ClearLine(line);
+    TextOut(0, line, str);
+}
+
+void WaitBT(byte c)
+{
+    PrintDebug(LCD_LINE2, "Unknown");
+    while (!RemoteConnectionIdle(c))
+    {
+        Wait(10);
+        PrintDebug(LCD_LINE2, "Busy");
+    }
+    PrintDebug(LCD_LINE2, "Idle");
+}
+
+task main()
+{
+    // SLAVE: launch after master (conn 0)
+
+    PrintDebug(LCD_LINE1, "Waiting");
+    
+    // Wait for master
+    //WaitBT(0);
+
+    PrintDebug(LCD_LINE1, "Sending");
+    //SendRemoteBool(0, 3, true);
+    SendRemoteNumber(0, 3, 42);
+    SendRemoteNumber(0, 3, 43);
+    PrintDebug(LCD_LINE1, "Sent");
+    
+    //WaitBT(0);
+
+    PrintDebug(LCD_LINE3, "DONE");
+    Wait(60000);
+}
