@@ -1,0 +1,46 @@
+// Oke, dit werkt, maar slechts voor 1 aanroep van ReceiveRemoteNumber
+// per bluetooth session life, daarna blijft de slave (zender) op "busy"
+// hangen
+
+void PrintDebug(byte line, string str)
+{
+    ClearLine(line);
+    TextOut(0, line, str);
+}
+
+task main()
+{
+    // MASTER: establish connection with
+    // slave on conn 1
+
+    // Wait for slave on conn 1
+    while (BluetoothStatus(1) != NO_ERR)
+    {
+        Wait(10);
+        PrintDebug(LCD_LINE4, "NO BT");
+    }
+    PrintDebug(LCD_LINE4, "BT OK");
+    
+    // Receive message
+    int res;
+    PrintDebug(LCD_LINE1, "Waiting");
+    while (ReceiveRemoteNumber(3, true, res) != NO_ERR)
+    {
+        Wait(10);
+        PrintDebug(LCD_LINE1, "Still waiting");
+    }
+    PrintDebug(LCD_LINE1, "Received: " + NumToStr(res));
+    
+    // TEST: second message
+    //TextOut(0, LCD_LINE2, "Waiting");
+    //while (ReceiveRemoteNumber(3, true, res) != NO_ERR)
+    //{
+    //    Wait(10);
+    //    ClearLine(LCD_LINE2);
+    //    TextOut(0, LCD_LINE2, "Still waiting");
+    //}
+    //ClearLine(LCD_LINE2);
+    //TextOut(0, LCD_LINE2, "Received: " + NumToStr(res));
+    
+    Wait(60000);
+}
