@@ -1,0 +1,286 @@
+#if !defined(IS_MASTER) && !defined(IS_SLAVE)
+#error Geen master of slave rol opgegeven!
+#endif
+
+#define MOTOR_BINNEN         OUT_C
+#define MOTOR_BUITEN         OUT_A
+#define POORT_OORSPRONG      IN_2
+#define POORT_SONAR          IN_1
+
+#define BT_TO 10
+
+#ifdef IS_MASTER
+#define BT_CONN   1
+#define BT_INBOX  1
+#define BT_OUTBOX 5
+#else
+#define BT_CONN   0
+#define BT_INBOX  5
+#define BT_OUTBOX 1
+#endif
+
+#define SONAR_AFWIJKING      5
+#define BEWEEG_SNELHEID      100
+#define DRAAI_SNELHEID       100
+#define DRAAI_DUUR           25
+#define DRAAI_STOP_DUUR      250
+
+#define HOEK_MAX     75
+#define HOEK_VOORUIT 40
+#define HOEK_ROTEER  35
+
+#define STAP_AFSTAND 100
+
+#define ONGEVEER_GELIJK(a, b, afwijk) (a >= b-afwijk && a <= b+afwijk)
+
+typedef struct
+{
+	int master_richting;
+	int slave_richting;
+	int master_afstand;
+	int slave_afstand;
+} Beweging;
+
+void print_tekst(string str)
+{
+	ClearLine(LCD_LINE1);
+	TextOut(0, LCD_LINE1, str);
+}
+
+void bt_wacht(int c)
+{
+	while (BluetoothStatus(c) != NO_ERR)
+		Wait(BT_TO);
+}
+
+void bt_init(int c)
+{
+	if (BluetoothStatus(c) != NO_ERR)
+	{
+		TextOut(5, LCD_LINE1, "--GEEN BT--");
+		Wait(5000);
+		Stop(true);
+	}
+}
+
+void bt_zend(int c, int g)
+{
+#ifdef IS_MASTER
+	bt_wacht(c);
+	SendRemoteNumber(c, BT_OUTBOX, g);
+	
+	g = 0;
+	while (ReceiveRemoteNumber(BT_INBOX, true, g) != NO_ERR)
+		Wait(BT_TO);
+
+	bt_wacht(c);
+#else
+	int x;
+	bt_wacht(c);
+	while (ReceiveRemoteNumber(BT_INBOX, true, x) != NO_ERR)
+		Wait(BT_TO);
+	
+	SendResponseNumber(BT_OUTBOX, g);
+	bt_wacht(c);
+#endif
+}
+
+int bt_ontvang(int c)
+{
+	int g = 0;
+	
+#ifdef IS_MASTER
+	bt_wacht(c);
+	SendRemoteNumber(c, BT_OUTBOX, 0x20);
+	
+	while (ReceiveRemoteNumber(BT_INBOX, true, g) != NO_ERR)
+		Wait(BT_TO);
+#else
+	bt_wacht(c);
+	while (ReceiveRemoteNumber(BT_INBOX, true, g) != NO_ERR)
+		Wait(BT_TO);
+	
+	SendResponseNumber(BT_OUTBOX, 0x10);	
+#endif
+
+	bt_wacht(c);
+	return g;
+}
+
+void sensors_init()
+{
+	SetSensorType(POORT_OORSPRONG, SENSOR_TYPE_TOUCH);
+	SetSensorMode(POORT_OORSPRONG, SENSOR_MODE_BOOL);
+	SetSensorUltrasonic(POORT_SONAR);
+	Off(MOTOR_BINNEN);
+	Off(MOTOR_BUITEN);
+}
+
+bool vis_gevangen()
+{
+	/* return of de vis gevangen is */
+}
+
+int ontvang_hoek()
+{
+	return bt_ontvang(BT_CONN);
+}
+
+void zend_hoek(int a)
+{
+	bt_zend(BT_CONN, a);
+}
+
+void ontvang_beweging(Beweging& b)
+{
+	b.master_richting = bt_ontvang(BT_CONN);
+	b.slave_richting  = bt_ontvang(BT_CONN);
+	b.master_afstand  = bt_ontvang(BT_CONN);
+	b.slave_afstand   = bt_ontvang(BT_CONN);
+}
+
+void zend_beweging(Beweging& b)
+{
+	bt_zend(BT_CONN, b.master_richting);
+	bt_zend(BT_CONN, b.slave_richting);
+	bt_zend(BT_CONN, b.master_afstand);
+	bt_zend(BT_CONN, b.slave_afstand);
+}
+
+void positie_draai(int a)
+{
+	int i;
+	int dir = a > 0;
+
+	a = abs(a);
+
+	for (i=0;i<a;++i)
+	{
+		if (dir) {OnRev(MOTOR_BUITEN, DRAAI_SNELHEID);}
+		else     {OnFwd(MOTOR_BUITEN, DRAAI_SNELHEID);}
+		Wait(DRAAI_DUUR);
+		Off(MOTOR_BUITEN);
+		Wait(DRAAI_STOP_DUUR);
+	}
+}
+
+void positie_herstel()
+{
+	while (!SensorBoolean(POORT_OORSPRONG))
+	{
+		positie_draai(-1);
+	}
+}
+
+void positie_beweeg(int afstnd)
+{
+	if (!afstnd)
+	{
+		return;
+	}
+
+	OnFwd(MOTOR_BUITEN, BEWEEG_SNELHEID);
+	OnFwd(MOTOR_BINNEN, BEWEEG_SNELHEID);
+	Wait(afstnd);
+	Off(MOTOR_BUITEN);
+	Off(MOTOR_BINNEN);
+}
+
+int zoek_vis()
+{
+	int  a          = 0;
+	bool bot        = false;
+	int  bot_afstnd = SensorUS(POORT_SONAR);
+
+	while (ONGEVEER_GELIJK(SensorUS(POORT_SONAR), bot_afstnd, SONAR_AFWIJKING))
+	{
+		positie_draai(1);
+		++a;
+	}
+
+	while (ONGEVEER_GELIJK(SensorUS(POORT_SONAR), 0xFF, SONAR_AFWIJKING) && a < HOEK_MAX)
+	{
+		positie_draai(1);
+		++a;
+	}
+
+	return a;
+}
+
+void beweging_bereken(int Al, int Ar, Beweging& b)
+{
+	if (Al == HOEK_MAX && Ar == HOEK_MAX)
+	{
+		/* draai 180 graden */
+	}
+	else if (Al > HOEK_VOORUIT && Al != HOEK_MAX)
+	{
+		/* draai linksom */
+		b.master_richting = 0;
+		b.slave_richting  = HOEK_ROTEER;
+		b.master_afstand  = 0;
+		b.slave_afstand   = STAP_AFSTAND;
+	}
+	else if (Ar > HOEK_VOORUIT && Ar != HOEK_MAX)
+	{
+		/* draai rechtsom */
+		b.master_richting = HOEK_ROTEER;
+		b.slave_richting  = 0;
+		b.master_afstand  = STAP_AFSTAND;
+		b.slave_afstand   = 0;
+	}
+	else
+	{
+		/* beweeg vooruit */
+		b.master_richting = HOEK_VOORUIT;
+		b.slave_richting  = HOEK_VOORUIT;
+		b.master_afstand  = STAP_AFSTAND;
+		b.slave_afstand   = STAP_AFSTAND;
+	}
+}
+
+void beweging_beweeg(int richt, int afstnd)
+{
+	print_tekst("Beweeg!");
+	positie_herstel();
+	positie_draai(richt);
+	positie_beweeg(afstnd);
+}
+
+task main()
+{
+	Beweging b;
+	int      a;
+#ifdef IS_MASTER
+	int      a2;
+#endif
+
+	print_tekst("Start");
+	sensors_init();
+	bt_init(BT_CONN);
+	bt_wacht(BT_CONN);
+
+
+	while (!vis_gevangen())
+	{
+		print_tekst("Zoek");
+		positie_herstel();
+		a = zoek_vis();
+
+#ifdef IS_MASTER
+		print_tekst("Comm master");
+		a2 = ontvang_hoek();
+		beweging_bereken(a, a2, b);
+		zend_beweging(b);
+		beweging_beweeg(b.master_richting, b.master_afstand);
+#else
+		print_tekst("Comm slave");
+		zend_hoek(a);
+		ontvang_beweging(b);
+		beweging_beweeg(b.slave_richting, b.slave_afstand);
+#endif
+	}
+	
+	/* overwinnings loop */
+	while (true);
+}
