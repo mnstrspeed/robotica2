@@ -1,0 +1,100 @@
+#if !defined(IS_MASTER) && !defined(IS_SLAVE)
+#error geen master of slave rol opgegeven.
+#endif
+
+#define BT_TO 10
+
+#ifdef IS_MASTER
+#define BT_CONN   1
+#define BT_INBOX  1
+#define BT_OUTBOX 5
+#else
+#define BT_CONN   0
+#define BT_INBOX  5
+#define BT_OUTBOX 1
+#endif
+
+void bt_wacht(int c)
+{
+	while (BluetoothStatus(c) != NO_ERR)
+		Wait(BT_TO);
+}
+
+void bt_init(int c)
+{
+	if (BluetoothStatus(c) != NO_ERR)
+	{
+		TextOut(5, LCD_LINE1, "--GEEN BT--");
+		Wait(5000);
+		Stop(true);
+	}
+}
+
+void bt_zend(int c, int g)
+{
+#ifdef IS_MASTER
+	bt_wacht(c);
+	SendRemoteNumber(c, BT_OUTBOX, g);
+	
+	g = 0;
+	while (ReceiveRemoteNumber(BT_INBOX, true, g) != NO_ERR)
+		Wait(BT_TO);
+
+	bt_wacht(c);
+#else
+	int x;
+	bt_wacht(c);
+	while (ReceiveRemoteNumber(BT_INBOX, true, x) != NO_ERR)
+		Wait(BT_TO);
+	
+	SendResponseNumber(BT_OUTBOX, g);
+	bt_wacht(c);
+#endif
+}
+
+int bt_ontvang(int c)
+{
+	int g = 0;
+	
+#ifdef IS_MASTER
+	bt_wacht(c);
+	SendRemoteNumber(c, BT_OUTBOX, 0x20);
+	
+	while (ReceiveRemoteNumber(BT_INBOX, true, g) != NO_ERR)
+		Wait(BT_TO);
+#else
+	bt_wacht(c);
+	while (ReceiveRemoteNumber(BT_INBOX, true, g) != NO_ERR)
+		Wait(BT_TO);
+	
+	SendResponseNumber(BT_OUTBOX, 0x10);	
+#endif
+
+	bt_wacht(c);
+	return g;
+}
+
+task main()
+{
+	bt_init(BT_CONN);
+	bt_wacht(BT_CONN);
+	
+#ifdef IS_MASTER
+	bt_zend(BT_CONN, 44);
+	bt_zend(BT_CONN, 21);
+	int res = bt_ontvang(BT_CONN);
+	TextOut(2, LCD_LINE3, NumToStr(res));
+	res = bt_ontvang(BT_CONN);
+	TextOut(2, LCD_LINE4, NumToStr(res));
+#else
+	int res = bt_ontvang(BT_CONN);
+	TextOut(2, LCD_LINE3, NumToStr(res));
+	res = bt_ontvang(BT_CONN);
+	TextOut(2, LCD_LINE4, NumToStr(res));
+	bt_zend(BT_CONN, 88);
+	bt_zend(BT_CONN, 300);
+#endif
+
+	TextOut(2, LCD_LINE5, "KLAAR");
+	while (true);
+}
